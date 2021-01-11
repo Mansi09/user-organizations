@@ -1,0 +1,13 @@
+{
+	"TOKEN_DETAILS": "TOKEN_DETAILS",
+	"SERVER_ERROR": "SERVER_ERROR",
+	"User not found": "User Not found",
+	"User update success": "User updated successfully.",
+	"User delete success": "User delete success",
+	"INVALID_CREDENTIALS": "INVALID_CREDENTIALS",
+	"ACCOUNT": "ACCOUNT",
+	"UNAUTHORIZED_ACCESS": "UNAUTHORIZED_ACCESS",
+	"Email already found": "Email already found",
+	"User Added Success": "User Added Success",
+	"Celebrity list success": "Celebrity list success"
+}

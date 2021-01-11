@@ -1,0 +1,92 @@
+def project_name = 'quiverx-api'
+def service_name = 'backend'
+def dirName = "${project_name}"-env.BRANCH_NAME
+def production_branch = 'master'
+def development_branch = 'development'
+
+def system_port = '6245'
+def cont_port = '6245'
+
+
+def sshagent_name = 'quiverx'
+def ip_address = '52.7.161.4'
+
+def image_name = "${project_name}-${service_name}-${env.BRANCH_NAME}"
+def container_name = "${image_name}-${env.BRANCH_NAME}" + "-cont"
+
+pipeline {
+    agent any
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '7'))
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                script {
+                    if (env.BRANCH_NAME == "${production_branch}") {
+                    
+                        withAWS(region:'us-east-1',credentials:'quiverx_s3_bucket') {
+                            def identity=awsIdentity();
+                            s3Download(file:'.env', bucket:'quiverx-images', path:'env-quiverx/production/.env', force:true);
+                        }
+
+                        sshagent(["${sshagent_name}"]) {
+                            sh "zip -r ${dirName}.zip . -x *.git*"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'mkdir /home/ubuntu/${dirName}/ || ls'"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'cd /home/ubuntu/${dirName} && sudo rm -r * || ls'"
+                            sh "scp -o StrictHostKeyChecking=no ${dirName}.zip ubuntu@${ip_address}:/home/ubuntu/"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'mv /home/ubuntu/${dirName}.zip /home/ubuntu/${dirName}/'"
+                            sh "rm -r ${dirName}.zip || ls"
+
+                        }
+
+                    } else if (env.BRANCH_NAME == "${development_branch}") {
+
+                        sh "pwd && ls -la"
+                        withAWS(region:'us-east-1',credentials:'quiverx_s3_bucket') {
+                            def identity=awsIdentity();
+                            s3Download(file:'.env', bucket:'quiverx-images', path:'env-quiverx/development/.env', force:true);
+                        }
+
+                        echo "Checkout Done & docker build started"
+                        sh "docker build -t ${project_name} ."
+                        echo "docker build done and it will run......"
+                    } 
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'do something'
+                script {
+                    if (env.BRANCH_NAME == "${production_branch}") {
+
+                        sshagent(["${sshagent_name}"]) {
+
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'sudo apt-get update && sudo apt-get install unzip'"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'cd /home/ubuntu/${dirName} && unzip -o ${dirName}.zip'"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'cd /home/ubuntu/${dirName} && sudo rm -r ${dirName}.zip'"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'cd /home/ubuntu/${project_name} && sudo docker build -t ${project_name} .'"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'sudo docker rm -f ${container_name} || date'"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${ip_address} 'sudo docker run --restart always -d -p ${system_port}:${cont_port} --name ${container_name} ${project_name}:latest'"
+                        }
+
+
+                    } else if (env.BRANCH_NAME == "${development_branch}") {
+
+                        sh "docker rm -f ${container_name} || ls"
+                        sh "docker run -d --restart always --name ${container_name} -p ${system_port}:${cont_port} ${project_name}"
+                        sh "docker ps | grep ${container_name}"
+                        echo "deployed"
+                    }
+                }
+            }
+        }
+    }
+    post { 
+        always { 
+            cleanWs()
+        }
+    }
+}
