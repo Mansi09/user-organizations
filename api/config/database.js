@@ -12,9 +12,7 @@ const knex = Knex({
     },
     pool: {
         min: 1,
-        max: 10,
-        // "propagateCreateError": false
-        // propagateCreateError: false
+        max: 10
     }
 });
 
